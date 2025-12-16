@@ -1,1 +1,32 @@
+{% extends "bootstrap/base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
 
+{% block title %}Обработка изображений{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h1 class="text-center mb-4">Разделение изображения на 4 части</h1>
+            <p class="lead text-center">Загрузите изображение, чтобы разделить его на 4 равные части и получить анализ цветов</p>
+            
+            <div class="card">
+                <div class="card-body">
+                    {{ wtf.quick_form(form, enctype="multipart/form-data", button_map={'submit': 'primary'}) }}
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h4>Описание функциональности:</h4>
+                <ul>
+                    <li>Изображение делится на 4 равные части (верхний левый, верхний правый, нижний левый, нижний правый)</li>
+                    <li>Для каждой части создается отдельный файл изображения</li>
+                    <li>Для каждой части строится график распределения цветов (RGB)</li>
+                    <li>Также строится график распределения цветов для исходного изображения</li>
+                    <li>Все части можно скачать отдельно</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
