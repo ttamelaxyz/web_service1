@@ -1,1 +1,60 @@
+{% extends "bootstrap/base.html" %}
 
+{% block title %}Результаты обработки{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Результаты обработки изображения</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h3>Исходное изображение</h3>
+            <img src="{{ url_for('static', filename='uploads/' + filename) }}" 
+                 class="img-fluid rounded shadow" 
+                 alt="Original image">
+        </div>
+        <div class="col-md-6">
+            <h3>Распределение цветов (исходное)</h3>
+            <img src="{{ original_plot }}" class="img-fluid" alt="Color distribution">
+        </div>
+    </div>
+    
+    <hr class="my-5">
+    
+    <h2 class="text-center mb-4">Полученные части изображения</h2>
+    <div class="row">
+        {% for i in range(4) %}
+        <div class="col-md-3 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Часть {{ i+1 }}</h5>
+                    <img src="{{ url_for('static', filename='uploads/' + filename.split('.')[0] + '_part' + (i+1)|string + '.png') }}"
+                         class="img-fluid mb-3"
+                         alt="Part {{ i+1 }}">
+                    
+                    <h6>Распределение цветов:</h6>
+                    <ul class="list-unstyled">
+                        <li><span style="color:red">●</span> Красный: {{ "%.3f"|format(distributions[i].red) }}</li>
+                        <li><span style="color:green">●</span> Зеленый: {{ "%.3f"|format(distributions[i].green) }}</li>
+                        <li><span style="color:blue">●</span> Синий: {{ "%.3f"|format(distributions[i].blue) }}</li>
+                    </ul>
+                    
+                    <img src="{{ plot_urls[i] }}" class="img-fluid mb-3" alt="Color distribution part {{ i+1 }}">
+                    
+                    <a href="{{ url_for('download_part', part=i+1, filename=filename) }}"
+                       class="btn btn-outline-primary btn-sm btn-block">
+                        Скачать часть {{ i+1 }}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="text-center mt-5">
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+            Обработать другое изображение
+        </a>
+    </div>
+</div>
+{% endblock %}
