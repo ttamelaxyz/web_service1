@@ -24,4 +24,4 @@ jobs:
 
       - name: Run syntax check
         run: |
-          python -m py_compile app.py
+          python -m py_compile ./flaskapp/app.py
