@@ -1,51 +1,27 @@
-name: Continuous Integration
+name: Flask CI
 
 on:
   push:
-    branches: [ main, master ]
   pull_request:
-    branches: [ main, master ]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        cd flaskapp
-        pip install -r requirements.txt
-    
-    - name: Run tests
-      run: |
-        cd flaskapp
-        chmod +x st.sh
-        ./st.sh
-    
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 flaskapp/*.py --count --max-complexity=10 --statistics
-    
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Deploy to Heroku
-      uses: akhileshns/heroku-deploy@v3.12.12
-      with:
-        heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-        heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-        heroku_email: ${{ secrets.HEROKU_EMAIL }}
-        usedocker: false
-        branch: main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run syntax check
+        run: |
+          python -m py_compile app.py

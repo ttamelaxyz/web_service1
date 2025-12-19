@@ -1,129 +1,71 @@
-from flask import Flask, render_template, request, send_file, jsonify
-from flask_bootstrap import Bootstrap
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed, FileRequired
-from wtforms import SubmitField
-from wtforms.validators import DataRequired
-import os
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request
 from PIL import Image
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')  # Для работы без GUI
+import os
 import matplotlib.pyplot as plt
-import io
-import base64
-from image_processor import split_image_into_four, get_color_distribution
+import numpy as np
+import uuid
 
 app = Flask(__name__)
-SECRET_KEY = "qwerty"
-app.config['SECRET_KEY'] = SECRET_KEY
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
-# Создаем папку для загрузок если её нет
-#os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+UPLOAD_FOLDER = "static/uploads"
+RESULT_FOLDER = "static/results"
+PLOT_FOLDER = "static/plots"
 
-Bootstrap(app)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
+os.makedirs(PLOT_FOLDER, exist_ok=True)
 
-# Форма для загрузки изображения
-class ImageUploadForm(FlaskForm):
-    image = FileField('Выберите изображение', validators=[
-        FileRequired(),
-        FileAllowed(['jpg', 'jpeg', 'png', 'gif', 'bmp'], 'Только изображения!')
-    ])
-    submit = SubmitField('Обработать')
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    form = ImageUploadForm()
-    if form.validate_on_submit():
-        file = form.image.data
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        return render_template('result.html', 
-                             filename=filename,
-                             original_image=filepath)
-    
-    return render_template('index.html', form=form)
-
-@app.route('/process/<filename>')
-def process_image(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    try:
-        #разбиваем изображение на 4 части
-        parts = split_image_into_four(filepath)
-        
-        #распределения цветов для каждой части
-        distributions = []
-        for i, part in enumerate(parts):
-            dist = get_color_distribution(part)
-            distributions.append(dist)
-            
-            #сохраняем каждую часть
-            part_filename = f"{filename.split('.')[0]}_part{i+1}.png"
-            part_path = os.path.join(app.config['UPLOAD_FOLDER'], part_filename)
-            part.save(part_path, 'PNG')
-        
-        #графики распределения цветов
-        plot_urls = []
-        for i, dist in enumerate(distributions):
-            plot_url = create_color_distribution_plot(dist, f"Часть {i+1}")
-            plot_urls.append(plot_url)
-        
-        #график для исходного изображения
-        original_dist = get_color_distribution(Image.open(filepath))
-        original_plot = create_color_distribution_plot(original_dist, "Исходное изображение")
-        
-        return render_template('result.html',
-                             filename=filename,
-                             original_image=filepath,
-                             parts=parts,
-                             distributions=distributions,
-                             plot_urls=plot_urls,
-                             original_plot=original_plot)
-        
-    except Exception as e:
-        return f"Ошибка обработки изображения: {str(e)}", 500
-
-def create_color_distribution_plot(distribution, title):
-    """Создает график распределения цветов и возвращает base64 строку"""
-    colors = ['Red', 'Green', 'Blue']
-    values = [distribution['red'], distribution['green'], distribution['blue']]
-    
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(colors, values, color=['red', 'green', 'blue'])
-    plt.title(f'Распределение цветов - {title}', fontsize=16)
-    plt.ylabel('Интенсивность', fontsize=12)
-    plt.xlabel('Цветовой канал', fontsize=12)
-    plt.ylim(0, 1)
-    
-    #значения на столбцы
-    for bar, value in zip(bars, values):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                f'{value:.3f}', ha='center', va='bottom')
-    
-    #сохраняем график в буфер
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+def save_histogram(image, filename):
+    data = np.array(image)
+    plt.figure()
+    if len(data.shape) == 3:
+        for i, color in enumerate(['r', 'g', 'b']):
+            plt.hist(data[:, :, i].flatten(), bins=256, color=color, alpha=0.5)
+    else:
+        plt.hist(data.flatten(), bins=256)
+    plt.title("Color distribution")
+    plt.savefig(filename)
     plt.close()
-    
-    #конвертируем в base64
-    buf.seek(0)
-    image_base64 = base64.b64encode(buf.read()).decode('utf-8')
-    return f"data:image/png;base64,{image_base64}"
 
-@app.route('/download/<part>/<filename>')
-def download_part(part, filename):
-    part_filename = f"{filename.split('.')[0]}_part{part}.png"
-    return send_file(
-        os.path.join(app.config['UPLOAD_FOLDER'], part_filename),
-        as_attachment=True,
-        download_name=part_filename
-    )
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+@app.route("/", methods=["GET", "POST"])
+def index():
+    result_images = []
+    plots = []
+
+    if request.method == "POST":
+        file = request.files["image"]
+        if file:
+            uid = str(uuid.uuid4())
+            path = os.path.join(UPLOAD_FOLDER, uid + "_" + file.filename)
+            file.save(path)
+
+            image = Image.open(path)
+            w, h = image.size
+            parts = [
+                image.crop((0, 0, w//2, h//2)),
+                image.crop((w//2, 0, w, h//2)),
+                image.crop((0, h//2, w//2, h)),
+                image.crop((w//2, h//2, w, h)),
+            ]
+
+            orig_plot = os.path.join(PLOT_FOLDER, f"{uid}_orig.png")
+            save_histogram(image, orig_plot)
+            plots.append(orig_plot)
+
+            for i, part in enumerate(parts):
+                img_path = os.path.join(RESULT_FOLDER, f"{uid}_part{i}.png")
+                plot_path = os.path.join(PLOT_FOLDER, f"{uid}_plot{i}.png")
+                part.save(img_path)
+                save_histogram(part, plot_path)
+                result_images.append(img_path)
+                plots.append(plot_path)
+
+    return render_template("index.html",
+                           images=result_images,
+                           plots=plots)
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
