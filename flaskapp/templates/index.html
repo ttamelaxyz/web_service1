@@ -15,12 +15,14 @@
     {% if images %}
         <h3>Результирующие изображения</h3>
         {% for img in images %}
-            <img src="{{ img }}" width="200">
+            <img src="{{ url_for('static', filename=img) }}" width="200">
+
         {% endfor %}
 
         <h3>Гистограммы распределения цветов</h3>
         {% for plot in plots %}
-            <img src="{{ plot }}" width="300">
+            <img src="{{ url_for('static', filename=plot) }}" width="300">
+
         {% endfor %}
     {% endif %}
 </body>

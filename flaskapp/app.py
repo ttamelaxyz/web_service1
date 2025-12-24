@@ -52,7 +52,6 @@ def save_histogram(image, filename):
 
 
 @app.route("/", methods=["GET", "POST"])
-@app.route("/", methods=["GET", "POST"])
 def index():
     result_images = []
     plots = []
@@ -97,8 +96,11 @@ def index():
                 part.save(part_img)
                 save_histogram(part, part_plot)
 
-                result_images.append(part_img)
-                plots.append(part_plot)
+                # result_images.append(part_img)
+                # plots.append(part_plot)
+                result_images.append(f"results/{uid}/part_{i}.png")
+                plots.append(f"plots/{uid}/plot_{i}.png")
+
 
     return render_template(
         "index.html",
