@@ -1,152 +1,83 @@
-from flask import Flask, render_template, request
-from PIL import Image
 import os
-import matplotlib.pyplot as plt
-import numpy as np
+from flask import Flask, render_template, request, send_file, url_for, session
+from werkzeug.utils import secure_filename
+from image_processor import split_image_into_four, generate_color_histograms
 import uuid
+import shutil
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-123")
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['PLOTS_FOLDER'] = 'static/plots'
 
-UPLOAD_FOLDER = "static/uploads"
-RESULT_FOLDER = "static/results"
-PLOT_FOLDER = "static/plots"
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
-os.makedirs(PLOT_FOLDER, exist_ok=True)
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def clear_old_sessions():
+    # Очистка старых сессий для предотвращения утечек памяти
+    session_folder = session.get('session_id')
+    if session_folder:
+        upload_path = os.path.join(app.config['UPLOAD_FOLDER'], session_folder)
+        plots_path = os.path.join(app.config['PLOTS_FOLDER'], session_folder)
+        for path in [upload_path, plots_path]:
+            if os.path.exists(path):
+                shutil.rmtree(path, ignore_errors=True)
 
-# def save_histogram(image, filename):
-#     data = np.array(image)
-#     plt.figure()
-#     if len(data.shape) == 3:
-#         for i, color in enumerate(['r', 'g', 'b']):
-#             plt.hist(data[:, :, i].flatten(), bins=256, color=color, alpha=0.5)
-#     else:
-#         plt.hist(data.flatten(), bins=256)
-#     plt.title("Color distribution")
-#     plt.savefig(filename)
-#     plt.close()
-
-def save_histogram(image, filename):
-    data = np.array(image)
-
-    fig = plt.figure()
-    try:
-        if len(data.shape) == 3:
-            for i, color in enumerate(['r', 'g', 'b']):
-                plt.hist(
-                    data[:, :, i].flatten(),
-                    bins=256,
-                    color=color,
-                    alpha=0.5
-                )
-        else:
-            plt.hist(data.flatten(), bins=256)
-
-        plt.title("Color distribution")
-        plt.savefig(filename)
-    finally:
-        plt.close(fig)
-
-
-
-@app.route("/", methods=["GET", "POST"])
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    result_images = []
-    plots = []
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    
+    if request.method == 'POST':
+        clear_old_sessions()
+        
+        if 'file' not in request.files:
+            return render_template('index.html', error="No file selected")
+        
+        file = request.files['file']
+        if file.filename == '':
+            return render_template('index.html', error="No file selected")
+        
+        if file and allowed_file(file.filename):
+            session_id = session['session_id']
+            upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+            plots_dir = os.path.join(app.config['PLOTS_FOLDER'], session_id)
+            
+            os.makedirs(upload_dir, exist_ok=True)
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            # Сохраняем оригинальное изображение
+            original_filename = secure_filename(file.filename)
+            original_path = os.path.join(upload_dir, 'original.jpg')
+            file.save(original_path)
+            
+            # Обрабатываем изображение
+            parts = split_image_into_four(original_path, upload_dir)
+            histograms = generate_color_histograms(original_path, parts, plots_dir)
+            
+            # Генерируем URL для отображения
+            image_urls = {
+                'original': url_for('static', filename=f'uploads/{session_id}/original.jpg'),
+                'parts': [url_for('static', filename=f'uploads/{session_id}/{p}') for p in parts],
+                'histograms': [url_for('static', filename=f'plots/{session_id}/{h}') for h in histograms]
+            }
+            
+            return render_template('index.html', 
+                                 image_urls=image_urls,
+                                 success="Image processed successfully")
+    
+    return render_template('index.html')
 
-    if request.method == "POST":
-        file = request.files.get("image")
-        if not file or file.filename == "":
-            return render_template("index.html")
+@app.route('/clear', methods=['POST'])
+def clear_session():
+    clear_old_sessions()
+    session.pop('session_id', None)
+    return {'status': 'cleared'}
 
-        uid = str(uuid.uuid4())
-
-        upload_dir = os.path.join(UPLOAD_FOLDER, uid)
-        result_dir = os.path.join(RESULT_FOLDER, uid)
-        plot_dir = os.path.join(PLOT_FOLDER, uid)
-
-        os.makedirs(upload_dir, exist_ok=True)
-        os.makedirs(result_dir, exist_ok=True)
-        os.makedirs(plot_dir, exist_ok=True)
-
-        img_path = os.path.join(upload_dir, file.filename)
-        file.save(img_path)
-
-        with Image.open(img_path) as img:
-            img = img.convert("RGB")
-            w, h = img.size
-
-            parts = [
-                img.crop((0, 0, w // 2, h // 2)),
-                img.crop((w // 2, 0, w, h // 2)),
-                img.crop((0, h // 2, w // 2, h)),
-                img.crop((w // 2, h // 2, w, h)),
-            ]
-
-            orig_plot = os.path.join(plot_dir, "original.png")
-            save_histogram(img, orig_plot)
-            plots.append(orig_plot)
-
-            for i, part in enumerate(parts):
-                part_img = os.path.join(result_dir, f"part_{i}.png")
-                part_plot = os.path.join(plot_dir, f"plot_{i}.png")
-
-                part.save(part_img)
-                save_histogram(part, part_plot)
-
-                # result_images.append(part_img)
-                # plots.append(part_plot)
-                result_images.append(f"results/{uid}/part_{i}.png")
-                plots.append(f"plots/{uid}/plot_{i}.png")
-
-
-    return render_template(
-        "index.html",
-        images=result_images,
-        plots=plots
-    )
-
-
-# def index():
-#     result_images = []
-#     plots = []
-
-#     if request.method == "POST":
-#         file = request.files["image"]
-#         if file:
-#             uid = str(uuid.uuid4())
-#             path = os.path.join(UPLOAD_FOLDER, uid + "_" + file.filename)
-#             file.save(path)
-
-#             with Image.open(path) as image:
-#                 image = image.convert("RGB")
-#             w, h = image.size
-#             parts = [
-#                 image.crop((0, 0, w//2, h//2)),
-#                 image.crop((w//2, 0, w, h//2)),
-#                 image.crop((0, h//2, w//2, h)),
-#                 image.crop((w//2, h//2, w, h)),
-#             ]
-
-#             orig_plot = os.path.join(PLOT_FOLDER, f"{uid}_orig.png")
-#             save_histogram(image, orig_plot)
-#             plots.append(orig_plot)
-
-#             for i, part in enumerate(parts):
-#                 img_path = os.path.join(RESULT_FOLDER, f"{uid}_part{i}.png")
-#                 plot_path = os.path.join(PLOT_FOLDER, f"{uid}_plot{i}.png")
-#                 part.save(img_path)
-#                 save_histogram(part, plot_path)
-#                 result_images.append(img_path)
-#                 plots.append(plot_path)
-
-#     return render_template("index.html",
-#                            images=result_images,
-#                            plots=plots)
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PLOTS_FOLDER'], exist_ok=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

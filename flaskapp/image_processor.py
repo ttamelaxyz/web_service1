@@ -1,0 +1,105 @@
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+def split_image_into_four(image_path, output_dir):
+    """
+    Разбивает изображение на 4 равные части с использованием PIL
+    """
+    img = Image.open(image_path)
+    if img is None:
+        raise ValueError("Cannot read image")
+    
+    # Конвертируем в RGB если нужно
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    
+    width, height = img.size
+    w_mid = width // 2
+    h_mid = height // 2
+    
+    parts = []
+    part_names = []
+    
+    # Координаты частей
+    coordinates = [
+        (0, w_mid, 0, h_mid),       # Верхняя левая
+        (w_mid, width, 0, h_mid),   # Верхняя правая
+        (0, w_mid, h_mid, height),  # Нижняя левая
+        (w_mid, width, h_mid, height) # Нижняя правая
+    ]
+    
+    for i, (x1, x2, y1, y2) in enumerate(coordinates):
+        part = img.crop((x1, y1, x2, y2))
+        part_name = f'part_{i+1}.jpg'
+        part_path = os.path.join(output_dir, part_name)
+        
+        # Сохраняем с оптимизацией
+        part.save(part_path, 'JPEG', quality=85, optimize=True)
+        parts.append(part)
+        part_names.append(part_name)
+    
+    return part_names
+
+def generate_color_histograms(original_path, part_paths, output_dir):
+    """
+    Генерирует гистограммы распределения цвета с использованием PIL
+    """
+    # Читаем все изображения
+    images = {}
+    
+    # Оригинальное изображение
+    try:
+        orig_img = Image.open(original_path)
+        if orig_img.mode != 'RGB':
+            orig_img = orig_img.convert('RGB')
+        images['Original'] = np.array(orig_img)
+    except:
+        pass
+    
+    # Части изображения
+    for i, part_name in enumerate(part_paths):
+        try:
+            part_path = os.path.join(output_dir.replace('plots', 'uploads'), part_name)
+            part_img = Image.open(part_path)
+            if part_img.mode != 'RGB':
+                part_img = part_img.convert('RGB')
+            images[f'Part {i+1}'] = np.array(part_img)
+        except:
+            continue
+    
+    histogram_names = []
+    
+    for name, img_array in images.items():
+        if img_array is None or img_array.size == 0:
+            continue
+        
+        # Создаем гистограммы для каждого канала (R, G, B)
+        colors = ('red', 'green', 'blue')
+        plt.figure(figsize=(10, 4))
+        
+        for i, color in enumerate(colors):
+            # Извлекаем канал
+            channel = img_array[:, :, i].flatten()
+            
+            # Строим гистограмму
+            plt.hist(channel, bins=256, range=(0, 256), 
+                    color=color, alpha=0.5, density=True)
+        
+        plt.title(f'Color Distribution - {name}')
+        plt.xlabel('Pixel Intensity (0-255)')
+        plt.ylabel('Normalized Frequency')
+        plt.grid(True, alpha=0.3)
+        plt.xlim([0, 256])
+        plt.legend(['Red', 'Green', 'Blue'])
+        
+        # Сохраняем график
+        hist_name = f'hist_{name.lower().replace(" ", "_")}.png'
+        hist_path = os.path.join(output_dir, hist_name)
+        plt.savefig(hist_path, dpi=100, bbox_inches='tight')
+        plt.close()
+        
+        histogram_names.append(hist_name)
+    
+    return histogram_names
