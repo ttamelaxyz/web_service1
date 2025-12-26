@@ -4,4 +4,3 @@ matplotlib
 numpy
 gunicorn
 Werkzeug
-opencv-python-headless

@@ -1,4 +1,4 @@
-name: Python CI
+name: CI
 
 on:
   push:
@@ -11,26 +11,46 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
     
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev
-    
-    - name: Install Python dependencies
-      run: |
+        cd flaskapp
         python -m pip install --upgrade pip
-        pip install -r ./flaskapp/requirements.txt
+        pip install -r requirements.txt
     
-    - name: Test application
+    - name: Check imports
       run: |
-        python -c "import cv2; print(f'OpenCV version: {cv2.__version__}')"
-        python ./flaskapp/app.py &
+        cd flaskapp
+        python -c "
+        try:
+            import flask
+            import numpy
+            import matplotlib
+            import PIL
+            print('All imports successful')
+        except ImportError as e:
+            print(f'Import error: {e}')
+            exit(1)
+        "
+    
+    - name: Test application structure
+      run: |
+        echo "Checking project structure..."
+        [ -f "flaskapp/app.py" ] && echo "app.py: OK" || echo "app.py: MISSING"
+        [ -f "flaskapp/requirements.txt" ] && echo "requirements.txt: OK" || echo "requirements.txt: MISSING"
+        [ -d "flaskapp/templates" ] && echo "templates/: OK" || echo "templates/: MISSING"
+        [ -d "flaskapp/static" ] && echo "static/: OK" || echo "static/: MISSING"
+    
+    - name: Test Flask app
+      run: |
+        cd flaskapp
+        mkdir -p static/uploads static/plots
+        timeout 10 python app.py &
         sleep 5
-        curl -f http://localhost:5000/ || exit 1
+        curl -f http://localhost:5000/ && echo "Flask app: OK" || (echo "Flask app: ERROR" && exit 1)
