@@ -7,11 +7,11 @@ from PIL import Image
 
 def split_image_into_four(image_path, output_dir):
     """
-    Разбивает изображение на 4 равные части
+    Разбиваем изображение на 4 равные части
     """
     img = Image.open(image_path)
     if img is None:
-        raise ValueError("Cannot read image")
+        raise ValueError("Cant read image")
     
     if img.mode != 'RGB':
         img = img.convert('RGB')
@@ -44,7 +44,7 @@ def split_image_into_four(image_path, output_dir):
 
 def generate_color_histograms(original_path, part_paths, output_dir):
     """
-    Генерирует гистограммы распределения цвета
+    Генерируем гистограммы распределения цвета
     """
     images = {}
     

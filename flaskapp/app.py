@@ -13,7 +13,7 @@ from image_processor import split_image_into_four, generate_color_histograms
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "web-service-secret-key-2003")
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16-MB
 
 # Пути относительно папки flaskapp
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +26,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def cleanup_old_sessions():
-    """Очищает файлы сессий старше 1 часа"""
+    """Очищаем файлы сессий старше 1 часа"""
     while True:
         time.sleep(3600)
         try:
@@ -48,7 +48,7 @@ def cleanup_old_sessions():
             print(f"Cleanup error: {e}")
 
 def clear_current_session():
-    """Очищает файлы текущей сессии"""
+    """Очищаем файлы текущей сессии"""
     session_id = session.get('session_id')
     if session_id:
         upload_path = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
@@ -110,7 +110,7 @@ def index():
                 if not histograms:
                     return render_template('index.html', error="Failed to generate histograms")
                 
-                # Генерируем URL с учетом папки flaskapp
+                # Генерируем URL
                 image_urls = {
                     'original': url_for('static', filename=f'uploads/{session_id}/original.jpg'),
                     'parts': [url_for('static', filename=f'uploads/{session_id}/{p}') for p in parts],
