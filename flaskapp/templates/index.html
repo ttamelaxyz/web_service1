@@ -30,20 +30,45 @@
             gap: 10px;
             margin: 15px 0;
         }
-        .part-img {
+        .watermark-img {
             width: 100%;
-            border: 1px solid #007bff;
+            height: 200px;
+            object-fit: cover;
+            border: 1px solid #28a745;
         }
         .histogram-img {
             width: 100%;
             margin: 5px 0;
         }
+        .watermark-section {
+            background-color: rgba(40, 167, 69, 0.05);
+            border-left: 4px solid #28a745;
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+        .watermark-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .watermark-text-badge {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        .original-img {
+            max-height: 300px;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Variant 13</h1>
-        <p>Upload an image to split it into 4 equal parts and view color distribution histograms.</p>
+        <h1>Variant 13 - Image Splitter with watermark</h1>
+        <p>Upload an image to split it into 4 parts with watermark and view color histograms.</p>
         
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
@@ -54,57 +79,91 @@
         {% endif %}
         
         <form method="POST" enctype="multipart/form-data" class="mb-4">
-            <div class="mb-3">
-                <label for="file" class="form-label">Select Image</label>
-                <input class="form-control" type="file" name="file" id="file" accept="image/*" required>
-                <div class="form-text">
-                    Supported formats: PNG, JPG, JPEG, GIF, WEBP (max 16MB)
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select Image</label>
+                        <input class="form-control" type="file" name="file" id="file" accept="image/*" required>
+                        <div class="form-text">
+                            Форматы: PNG, JPG, JPEG, GIF, WEBP (max 16MB)
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="watermark_text" class="form-label">Текст водяного знака <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="watermark_text" name="watermark_text" 
+                               placeholder="Введите текст водяного знака" 
+                               value="{{ watermark_text if watermark_text else '' }}" required>
+                        <div class="form-text">
+                            Водяной знак будет применен ко всем 4 картинкам
+                        </div>
+                    </div>
                 </div>
             </div>
+            
             <button type="submit" class="btn btn-primary">Process Image</button>
         </form>
         
         {% if image_urls %}
         <div class="row">
+            <!-- Исходная картинка -->
             <div class="col-md-6">
                 <div class="image-container">
-                    <h3>Original Image</h3>
-                    <img src="{{ image_urls.original }}" class="img-fluid rounded" alt="Original">
+                    <h3>Исходная картинка</h3>
+                    <img src="{{ image_urls.original }}" class="img-fluid rounded original-img" alt="Original">
                 </div>
             </div>
             
+            <!-- Разбиение оригинала на 4 части -->
+            {% if image_urls.get('watermarked_parts') %}
             <div class="col-md-6">
                 <div class="image-container">
-                    <h3>Split Parts</h3>
+                    <div class="watermark-header">
+                        <h3 class="mb-0">Разбиение оригинала на 4 части</h3>
+                        {% if watermark_text %}
+                        <span class="watermark-text-badge">"{{ watermark_text }}"</span>
+                        {% endif %}
+                    </div>
                     <div class="part-grid">
-                        {% for part_url in image_urls.parts %}
-                            <div>
-                                <p>Part {{ loop.index }}</p>
-                                <img src="{{ part_url }}" class="part-img" alt="Part {{ loop.index }}">
+                        {% for wm_url in image_urls.watermarked_parts %}
+                            <div class="text-center">
+                                <p class="mb-1">Part {{ loop.index }}</p>
+                                <img src="{{ wm_url }}" class="watermark-img rounded" alt="Watermarked Part {{ loop.index }}">
                             </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
         
+        <!-- Гистограммы вывод -->
         <div class="row mt-4">
             <div class="col-12">
                 <div class="image-container">
                     <h3>Color Distribution Histograms</h3>
                     <div class="row">
                         {% for hist_url in image_urls.histograms %}
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <div class="card">
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="card h-100">
                                     <div class="card-body">
-                                        <p class="card-title text-center">
+                                        <h6 class="card-title text-center">
                                             {% if 'original' in hist_url %}
                                                 Original Image
+                                            {% elif 'part_1' in hist_url %}
+                                                Part 1
+                                            {% elif 'part_2' in hist_url %}
+                                                Part 2
+                                            {% elif 'part_3' in hist_url %}
+                                                Part 3
+                                            {% elif 'part_4' in hist_url %}
+                                                Part 4
                                             {% else %}
-                                                Part {{ loop.index - 1 if loop.index > 1 else 1 }}
+                                                Histogram
                                             {% endif %}
-                                        </p>
-                                        <img src="{{ hist_url }}" class="histogram-img" alt="Histogram">
+                                        </h6>
+                                        <img src="{{ hist_url }}" class="histogram-img rounded" alt="Histogram">
                                     </div>
                                 </div>
                             </div>
@@ -113,7 +172,41 @@
                 </div>
             </div>
         </div>
+        
+        
         {% endif %}
     </div>
+    
+    <script>
+        // File input preview
+        document.getElementById('file').addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                const fileName = this.files[0].name;
+                const fileSize = (this.files[0].size / (1024 * 1024)).toFixed(2);
+                const label = document.querySelector('label[for="file"]');
+                label.innerHTML = `Selected: <strong>${fileName}</strong> (${fileSize} MB)`;
+            }
+        });
+        
+        // Watermark text validation
+        const watermarkInput = document.getElementById('watermark_text');
+        if (watermarkInput) {
+            watermarkInput.addEventListener('input', function() {
+                if (this.value.length > 30) {
+                    this.value = this.value.substring(0, 30);
+                    alert('Watermark text is limited to 30 characters');
+                }
+            });
+            
+            // Add required validation styling
+            watermarkInput.addEventListener('blur', function() {
+                if (!this.value.trim()) {
+                    this.classList.add('is-invalid');
+                } else {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+    </script>
 </body>
 </html>

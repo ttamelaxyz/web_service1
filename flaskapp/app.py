@@ -9,7 +9,7 @@ import time
 
 # Добавляем путь к текущей папке
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from image_processor import split_image_into_four, generate_color_histograms
+from image_processor import split_image_into_four, generate_color_histograms, add_watermark_to_parts
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "web-service-secret-key-2003")
@@ -87,6 +87,8 @@ def index():
         if file.filename == '':
             return render_template('index.html', error="No file selected")
         
+        watermark_text = request.form.get('watermark_text', '').strip()
+        
         if file and allowed_file(file.filename):
             clear_current_session()
             
@@ -100,11 +102,18 @@ def index():
             try:
                 file.save(original_path)
                 
+                # Разбиваем изображение на части
                 parts = split_image_into_four(original_path, upload_dir)
                 
                 if not parts:
                     return render_template('index.html', error="Failed to split image")
                 
+                # Добавляем водяной знак, если текст указан
+                watermarked_parts = []
+                if watermark_text:
+                    watermarked_parts = add_watermark_to_parts(parts, upload_dir, watermark_text)
+                
+                # Генерируем гистограммы
                 histograms = generate_color_histograms(original_path, parts, plots_dir)
                 
                 if not histograms:
@@ -117,8 +126,16 @@ def index():
                     'histograms': [url_for('static', filename=f'plots/{session_id}/{h}') for h in histograms]
                 }
                 
+                # Добавляем URL водяных знаков, если они есть
+                if watermarked_parts:
+                    image_urls['watermarked_parts'] = [
+                        url_for('static', filename=f'uploads/{session_id}/{wp}') 
+                        for wp in watermarked_parts
+                    ]
+                
                 return render_template('index.html', 
                                      image_urls=image_urls,
+                                     watermark_text=watermark_text,
                                      success="Image processed successfully")
                 
             except Exception as e:
