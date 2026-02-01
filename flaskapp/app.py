@@ -7,6 +7,8 @@ import shutil
 import threading
 import time
 
+#водяной знак, текст вводит пользователь
+
 # Добавляем путь к текущей папке
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from image_processor import split_image_into_four, generate_color_histograms, add_watermark_to_parts
@@ -145,6 +147,11 @@ def index():
             return render_template('index.html', error="Invalid file type")
     
     return render_template('index.html')
+
+@app.route('/code')
+def show_code():
+    """Страница с отображением исходного кода"""
+    return render_template('code.html')
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
